@@ -1,123 +1,142 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
+	"net/http"
 	"time"
 )
 
-type city struct {
-	posx int
-	posy int
+type City struct {
+	Posx int
+	Posy int
 }
+
+type Res struct {
+	Cities    map[int]City `json:"Cities"`
+	Paths     []path       `json:"Paths"`
+	Distances [100][]int   `json:"Distances"`
+}
+
+type Cities map[int]City
+
+type path []int
 
 const iterations = 100
 
 func main() {
+	http.HandleFunc("/", handler)
+	log.Fatal(http.ListenAndServe("localhost:8080", nil))
 	// poblacion con funcion de aptitud
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	var pob [100][]int
-	cities := make(map[int]city)
-	citiesA := [20]city{
+	cities := make(Cities)
+	citiesA := [20]City{
 		// 0
 		{
-			posx: 1,
-			posy: 3,
+			Posx: 1,
+			Posy: 3,
 		},
 		// 1
 		{
-			posx: 2,
-			posy: 5,
+			Posx: 2,
+			Posy: 5,
 		},
 		// 2
 		{
-			posx: 2,
-			posy: 7,
+			Posx: 2,
+			Posy: 7,
 		},
 		// 3
 		{
-			posx: 4,
-			posy: 2,
+			Posx: 4,
+			Posy: 2,
 		},
 		// 4
 		{
-			posx: 4,
-			posy: 4,
+			Posx: 4,
+			Posy: 4,
 		},
 		// 5
 		{
-			posx: 4,
-			posy: 7,
+			Posx: 4,
+			Posy: 7,
 		},
 		// 6
 		{
-			posx: 4,
-			posy: 8,
+			Posx: 4,
+			Posy: 8,
 		},
 		// 7
 		{
-			posx: 5,
-			posy: 3,
+			Posx: 5,
+			Posy: 3,
 		},
 		// 8
 		{
-			posx: 6,
-			posy: 1,
+			Posx: 6,
+			Posy: 1,
 		},
 		// 9
 		{
-			posx: 6,
-			posy: 6,
+			Posx: 6,
+			Posy: 6,
 		},
 		// 10
 		{
-			posx: 7,
-			posy: 8,
+			Posx: 7,
+			Posy: 8,
 		},
 		// 11
 		{
-			posx: 8,
-			posy: 2,
+			Posx: 8,
+			Posy: 2,
 		},
 		// 12
 		{
-			posx: 8,
-			posy: 7,
+			Posx: 8,
+			Posy: 7,
 		},
 		// 13
 		{
-			posx: 9,
-			posy: 3,
+			Posx: 9,
+			Posy: 3,
 		},
 		// 14
 		{
-			posx: 10,
-			posy: 7,
+			Posx: 10,
+			Posy: 7,
 		},
 		// 15
 		{
-			posx: 11,
-			posy: 1,
+			Posx: 11,
+			Posy: 1,
 		},
 		// 16
 		{
-			posx: 11,
-			posy: 4,
+			Posx: 11,
+			Posy: 4,
 		},
 		// 17
 		{
-			posx: 11,
-			posy: 6,
+			Posx: 11,
+			Posy: 6,
 		},
 		// 18
 		{
-			posx: 12,
-			posy: 7,
+			Posx: 12,
+			Posy: 7,
 		},
 		// 19
 		{
-			posx: 13,
-			posy: 5,
+			Posx: 13,
+			Posy: 5,
 		},
 	}
 	for i, v := range citiesA {
@@ -132,27 +151,49 @@ func main() {
 		distance := calculateDist(pob[i], cities)
 		pob[i] = append(pob[i], int(distance))
 	}
+
+	var chartsMost []path
 	for i := 0; i < iterations; i++ {
-		pob = TSP(pob, cities)
+		var mostOpt path
+		pob, mostOpt = TSP(pob, cities)
+		chartsMost = append(chartsMost, mostOpt)
 	}
-	for i, v := range pob {
-		fmt.Println("response: ", i, v)
+	var distances [100][]int
+	for i, v := range chartsMost {
+		if i == 0 {
+			distances[i] = append(distances[0], v[len(v)-1])
+		} else {
+			distances[i] = append(distances[i], distances[i-1]...)
+			distances[i] = append(distances[i], v[len(v)-1])
+		}
 	}
+	res := &Res{
+		Paths:     chartsMost,
+		Cities:    cities,
+		Distances: distances,
+	}
+	resjson, err := json.Marshal(res)
+	_, err = w.Write(resjson)
+	if err != nil {
+		fmt.Println("err", err)
+	}
+
 }
 
-func calculateDist(path []int, cities map[int]city) int {
+func calculateDist(path []int, cities map[int]City) int {
 	distance := 0.0
 	for j := 0; j < len(path)-1; j++ {
 		nextCity := j + 1
-		xpos := cities[path[nextCity]].posx - cities[path[j]].posx
-		ypos := cities[path[nextCity]].posy - cities[path[j]].posy
+		xpos := cities[path[nextCity]].Posx - cities[path[j]].Posx
+		ypos := cities[path[nextCity]].Posy - cities[path[j]].Posy
 		distance += math.Sqrt(float64((xpos * xpos) + (ypos * ypos)))
 	}
 	return int(distance)
 }
 
-func TSP(pob [100][]int, cities map[int]city) [100][]int {
+func TSP(pob [100][]int, cities map[int]City) ([100][]int, []int) {
 	var childs [][]int
+	var mostOpt []int
 	for i := 0; i < iterations; i++ {
 		var winner []int
 		distWinner := 0
@@ -178,6 +219,11 @@ func TSP(pob [100][]int, cities map[int]city) [100][]int {
 
 		// operacion reproductiva
 		// quitamos la distancia pre guardada
+		if len(mostOpt) == 0 {
+			mostOpt = winner
+		} else if mostOpt[len(mostOpt)-1] > winner[len(winner)-1] {
+			mostOpt = winner
+		}
 		var ch []int
 		ch = append(ch, winner[0:len(winner)-1]...)
 		min := 0
@@ -195,5 +241,5 @@ func TSP(pob [100][]int, cities map[int]city) [100][]int {
 	}
 	var r [100][]int
 	copy(r[:], childs[:])
-	return r
+	return r, mostOpt
 }
