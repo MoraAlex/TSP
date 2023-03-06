@@ -7,6 +7,8 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,8 +29,17 @@ type path []int
 
 const iterations = 100
 
+const A,
+	B,
+	C,
+	D,
+	E,
+	F,
+	G = 8, 25, 4, 45, 10, 17, 35
+
 func main() {
 	http.HandleFunc("/", handler)
+	http.HandleFunc("/curva", curvaHandler)
 	log.Fatal(http.ListenAndServe("localhost:8080", nil))
 	// poblacion con funcion de aptitud
 }
@@ -242,4 +253,159 @@ func TSP(pob [100][]int, cities map[int]City) ([100][]int, []int) {
 	var r [100][]int
 	copy(r[:], childs[:])
 	return r, mostOpt
+}
+
+func curvaHandler(w http.ResponseWriter, r *http.Request) {
+	var pob [100][]int
+	// filling the array with random numbers from 0 to 255
+	for i := range pob {
+		var chrom []int
+		for j := 0; j < 7; j++ {
+			rand.Seed(time.Now().UnixNano())
+			// if the position of array is 2 or 4 add a random number from 1 to 255
+			// to avoid divition between 0
+			if j == 2 || j == 4 {
+				chrom = append(chrom, rand.Intn(255-1+1)+1)
+			} else {
+				chrom = append(chrom, rand.Intn(255-0+1)+0)
+			}
+		}
+		pob[i] = chrom
+	}
+	var allBest [100][]int
+	for i := 0; i < iterations; i++ {
+		var best []int
+		pob, best = curva(pob)
+		allBest[i] = best
+	}
+	resjson, err := json.Marshal(allBest)
+	_, err = w.Write(resjson)
+	if err != nil {
+		fmt.Println("err", err)
+	}
+}
+
+func functionToEvualte(A, B, C, D, E, F, G, x int) int {
+	// A * (B * sin(x/C) + D * cos(x/E)) + F * x - G
+	if C == 0 || E == 0 {
+		C = 1
+		E = 1
+	}
+	return (A*(B*int(math.Sin(float64(x/C)))+D*int(math.Cos(float64(x/E)))) + F*x - G)
+}
+
+func aptitud(yref, ygen int) float64 {
+	return math.Abs(float64(yref) - float64(ygen))
+}
+
+func encodeChromo(chromo []int) []string {
+	var b []string
+	for _, v := range chromo {
+		s := fmt.Sprintf("%08b", v)
+		b = append(b, strings.Split(s, "")...)
+	}
+	return b
+}
+
+func decodeChromo(chromo []string) []int {
+	var a []int
+	var b []string
+	for i, v := range chromo {
+		b = append(b, v)
+		if (i+1)%8 == 0 {
+			s := strings.Join(b, "")
+			b = nil
+			if n, err := strconv.ParseInt(s, 2, 64); err != nil {
+				fmt.Println(err)
+			} else {
+				if n == 0 {
+					n = 1
+				}
+				a = append(a, int(n))
+			}
+		}
+	}
+	return a
+}
+
+func getAptitud(chromo []int) int {
+	yref := 0
+	ygen := 0
+	ap := 0.0
+	for i := 1; i <= 1000; i++ {
+		Ap := chromo[0] / (255 / chromo[0])
+		Bp := chromo[0] / (255 / chromo[1])
+		Cp := chromo[0] / (255 / chromo[2])
+		Dp := chromo[0] / (255 / chromo[3])
+		Ep := chromo[0] / (255 / chromo[4])
+		Fp := chromo[0] / (255 / chromo[5])
+		Gp := chromo[0] / (255 / chromo[6])
+		yref += functionToEvualte(A, B, C, D, E, F, G, i)
+		ygen += functionToEvualte(Ap, Bp, Cp, Dp, Ep, Fp, Gp, i)
+		ap += aptitud(yref, ygen)
+	}
+	fmt.Println("ref ", yref)
+	fmt.Println("gen ", ygen)
+	return int(ap)
+}
+
+// enseñarle resultados al profe. El resultado de la funcion ya esta cerca uno del otro pero los valores (A, B, C, D... etc) no lo estan.
+// deberia aplicar mutuacion o elitismo?
+func curva(pob [100][]int) ([100][]int, []int) {
+	var newPob [100][]int
+	var best []int
+	for i := 0; i < 50; i++ {
+		c := 0
+		var father []int
+		distFather := 0
+		distC := 0
+		for i := 0; i < 5; i++ {
+			rand.Seed(time.Now().UnixNano())
+			c = rand.Intn(99-0+1) + 0
+			distC = getAptitud(pob[c])
+			if len(father) == 0 {
+				father = pob[c]
+				distFather = distC
+			} else if distFather > distC {
+				father = pob[c]
+				distFather = distC
+			}
+		}
+		var mother []int
+		distMother := 0
+		distC = 0
+		c = 0
+		for i := 0; i < 5; i++ {
+			rand.Seed(time.Now().UnixNano())
+			c = rand.Intn(99-0+1) + 0
+			distC = getAptitud(pob[c])
+			if len(mother) == 0 {
+				mother = pob[c]
+				distMother = distC
+			} else if distMother > distC {
+				mother = pob[c]
+				distMother = distC
+			}
+		}
+		ef := encodeChromo(father)
+		em := encodeChromo(mother)
+		rand.Seed(time.Now().UnixNano())
+		cut := rand.Intn(55-1+1) + 1
+		x := make([]string, len(ef[:cut]))
+		y := make([]string, len(ef[cut:]))
+		xx := make([]string, len(ef[:cut]))
+		yy := make([]string, len(ef[cut:]))
+		copy(x[:], ef[:cut])
+		copy(y[:], ef[cut:])
+		copy(xx[:], em[:cut])
+		copy(yy[:], em[cut:])
+		son1 := append(x, yy...)
+		son2 := append(xx, y...)
+		newPob[i] = decodeChromo(son1)
+		newPob[i+50] = decodeChromo(son2)
+		best = father
+		fmt.Println("mother", mother)
+	}
+	fmt.Println(newPob)
+	return newPob, best
 }
