@@ -29,6 +29,8 @@ type path []int
 
 const iterations = 100
 
+const maxPob = 200
+
 const A,
 	B,
 	C,
@@ -256,7 +258,7 @@ func TSP(pob [100][]int, cities map[int]City) ([100][]int, []int) {
 }
 
 func curvaHandler(w http.ResponseWriter, r *http.Request) {
-	var pob [100][]int
+	var pob [200][]int
 	// filling the array with random numbers from 0 to 255
 	for i := range pob {
 		var chrom []int
@@ -272,12 +274,11 @@ func curvaHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		pob[i] = chrom
 	}
-	var allBest [100][]int
-	for i := 0; i < iterations; i++ {
+	var allBest [200][]int
+	for i := 0; i < maxPob; i++ {
 		var best []int
 		pob, best = curva(pob)
 		allBest[i] = best
-		fmt.Println("generation: ", i)
 	}
 	resjson, err := json.Marshal(allBest)
 	_, err = w.Write(resjson)
@@ -355,19 +356,18 @@ func getAptitud(chromo []int) int {
 	return int(ap)
 }
 
-// enseñarle resultados al profe. El resultado de la funcion ya esta cerca uno del otro pero los valores (A, B, C, D... etc) no lo estan.
-// deberia aplicar mutuacion o elitismo?
-func curva(pob [100][]int) ([100][]int, []int) {
-	var newPob [100][]int
+func curva(pob [200][]int) ([200][]int, []int) {
+	var newPob [200][]int
 	var best []int
-	for i := 0; i < 50; i++ {
+	halfNewPob := len(newPob) / 2
+	for i := 0; i < halfNewPob; i++ {
 		c := 0
 		var father []int
 		distFather := 0
 		distC := 0
 		for i := 0; i < 5; i++ {
 			rand.Seed(time.Now().UnixNano())
-			c = rand.Intn(99-0+1) + 0
+			c = rand.Intn((maxPob-1)-0+1) + 0
 			distC = getAptitud(pob[c])
 			if len(father) == 0 {
 				father = pob[c]
@@ -383,7 +383,7 @@ func curva(pob [100][]int) ([100][]int, []int) {
 		c = 0
 		for i := 0; i < 5; i++ {
 			rand.Seed(time.Now().UnixNano())
-			c = rand.Intn(99-0+1) + 0
+			c = rand.Intn(maxPob-1-0+1) + 0
 			distC = getAptitud(pob[c])
 			if len(mother) == 0 {
 				mother = pob[c]
@@ -408,8 +408,10 @@ func curva(pob [100][]int) ([100][]int, []int) {
 		son1 := append(x, yy...)
 		son2 := append(xx, y...)
 		newPob[i] = decodeChromo(son1)
-		newPob[i+50] = decodeChromo(son2)
+		newPob[i+halfNewPob] = decodeChromo(son2)
 		best = father
 	}
+	fmt.Println(newPob)
+	fmt.Println(len(newPob))
 	return newPob, best
 }
