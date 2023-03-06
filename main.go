@@ -277,6 +277,7 @@ func curvaHandler(w http.ResponseWriter, r *http.Request) {
 		var best []int
 		pob, best = curva(pob)
 		allBest[i] = best
+		fmt.Println("generation: ", i)
 	}
 	resjson, err := json.Marshal(allBest)
 	_, err = w.Write(resjson)
@@ -328,24 +329,29 @@ func decodeChromo(chromo []string) []int {
 	return a
 }
 
+func getWeight(gen int) int {
+	if gen == 0 {
+		return 1
+	}
+	return 255 / gen
+}
+
 func getAptitud(chromo []int) int {
 	yref := 0
 	ygen := 0
 	ap := 0.0
+	Ap := chromo[0] / getWeight(chromo[0])
+	Bp := chromo[0] / getWeight(chromo[1])
+	Cp := chromo[0] / getWeight(chromo[2])
+	Dp := chromo[0] / getWeight(chromo[3])
+	Ep := chromo[0] / getWeight(chromo[4])
+	Fp := chromo[0] / getWeight(chromo[5])
+	Gp := chromo[0] / getWeight(chromo[6])
 	for i := 1; i <= 1000; i++ {
-		Ap := chromo[0] / (255 / chromo[0])
-		Bp := chromo[0] / (255 / chromo[1])
-		Cp := chromo[0] / (255 / chromo[2])
-		Dp := chromo[0] / (255 / chromo[3])
-		Ep := chromo[0] / (255 / chromo[4])
-		Fp := chromo[0] / (255 / chromo[5])
-		Gp := chromo[0] / (255 / chromo[6])
 		yref += functionToEvualte(A, B, C, D, E, F, G, i)
 		ygen += functionToEvualte(Ap, Bp, Cp, Dp, Ep, Fp, Gp, i)
 		ap += aptitud(yref, ygen)
 	}
-	fmt.Println("ref ", yref)
-	fmt.Println("gen ", ygen)
 	return int(ap)
 }
 
@@ -404,8 +410,6 @@ func curva(pob [100][]int) ([100][]int, []int) {
 		newPob[i] = decodeChromo(son1)
 		newPob[i+50] = decodeChromo(son2)
 		best = father
-		fmt.Println("mother", mother)
 	}
-	fmt.Println(newPob)
 	return newPob, best
 }
